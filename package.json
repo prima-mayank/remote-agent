@@ -1,0 +1,15 @@
+{
+  "name": "remote-desktop-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "calling-app-workspace": "file:..",
+    "dotenv": "^17.2.3",
+    "screenshot-desktop": "^1.15.1",
+    "socket.io-client": "^4.8.3"
+  }
+}
