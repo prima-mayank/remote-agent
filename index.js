@@ -1,5 +1,6 @@
 import os from "os";
 import path from "path";
+import fs from "fs";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
@@ -8,7 +9,25 @@ import { io } from "socket.io-client";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, ".env"), quiet: true });
+
+const resolveEnvPath = () => {
+  const candidates = [
+    path.join(process.cwd(), ".env"),
+    path.join(path.dirname(process.execPath), ".env"),
+    path.join(__dirname, ".env"),
+  ];
+
+  for (const envPath of candidates) {
+    if (fs.existsSync(envPath)) return envPath;
+  }
+
+  return "";
+};
+
+const envPath = resolveEnvPath();
+if (envPath) {
+  dotenv.config({ path: envPath, quiet: true });
+}
 
 const serverUrl = process.env.REMOTE_SERVER_URL || "http://localhost:5000";
 const remoteControlToken = String(process.env.REMOTE_CONTROL_TOKEN || "").trim();
@@ -42,7 +61,18 @@ const startInputBridge = () => {
     return;
   }
 
-  const scriptPath = path.join(__dirname, "scripts", "windowsInputBridge.ps1");
+  const scriptCandidates = [
+    path.join(process.cwd(), "scripts", "windowsInputBridge.ps1"),
+    path.join(path.dirname(process.execPath), "scripts", "windowsInputBridge.ps1"),
+    path.join(__dirname, "scripts", "windowsInputBridge.ps1"),
+  ];
+
+  const scriptPath = scriptCandidates.find((candidate) => fs.existsSync(candidate));
+  if (!scriptPath) {
+    console.error("[agent] windowsInputBridge.ps1 not found. Input control is unavailable.");
+    return;
+  }
+
   inputBridge = spawn(
     "powershell",
     ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath],
@@ -81,7 +111,7 @@ const stopCaptureLoop = () => {
 
 const socket = io(serverUrl, {
   auth: remoteControlToken ? { token: remoteControlToken } : undefined,
-  transports: ["websocket", "polling"],
+  transports: ["polling", "websocket"],
 });
 
 const sendFrame = async () => {

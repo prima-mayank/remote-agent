@@ -3,7 +3,6 @@ node_modules/
 # env
 .env
 .env.*
-!.env.example
 
 # logs
 logs/
@@ -22,3 +21,4 @@ Thumbs.db
 .cache/
 .tmp/
 *.local
+dist/

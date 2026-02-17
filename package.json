@@ -3,12 +3,28 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "bin": "launcher.cjs",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "build:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-portable-win.ps1",
+    "build:win:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-release-win.ps1"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
     "screenshot-desktop": "^1.15.1",
     "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [
+      "scripts/windowsInputBridge.ps1",
+      "index.js"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
   }
 }
