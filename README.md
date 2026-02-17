@@ -40,4 +40,16 @@ It contains:
 - `REMOTE_SERVER_URL` backend URL
 - `REMOTE_HOST_ID` unique host id
 - `REMOTE_FPS` frame rate (default 6)
+- `REMOTE_PERF_MODE` `auto` (default) or `off`
+- `REMOTE_MIN_FPS` minimum FPS in auto mode (default up to 3)
+- `REMOTE_ACTIVE_INPUT_FPS` FPS while controller is actively sending input (default up to 3)
+- `REMOTE_TYPING_FPS` FPS while keyboard input is active (default up to 2)
+- `REMOTE_INPUT_WINDOW_MS` active-input window for adaptive mode (default 1200)
+- `REMOTE_TYPING_WINDOW_MS` typing-priority window for adaptive mode (default 2200)
+- `REMOTE_SLOW_CAPTURE_MS` capture-duration threshold for temporary backoff (default 450)
 - `REMOTE_CONTROL_TOKEN` same token as backend/frontend
+- `REMOTE_DISPLAY_ID` optional monitor id to capture (defaults to the display at origin, else first detected display)
+
+If cursor movement feels offset or too sensitive on multi-monitor hosts, set `REMOTE_DISPLAY_ID` explicitly to the target monitor id.
+
+If you see an infinite mirror (screen repeated inside itself), the controller UI is being captured on the same host monitor. Use a different controller device/screen, or pick another monitor via `REMOTE_DISPLAY_ID`.
