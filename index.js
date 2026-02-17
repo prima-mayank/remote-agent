@@ -11,6 +11,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, ".env"), quiet: true });
 
 const serverUrl = process.env.REMOTE_SERVER_URL || "http://localhost:5000";
+const remoteControlToken = String(process.env.REMOTE_CONTROL_TOKEN || "").trim();
 const hostId = String(process.env.REMOTE_HOST_ID || os.hostname()).trim();
 const fps = Number.isFinite(Number(process.env.REMOTE_FPS))
   ? Number(process.env.REMOTE_FPS)
@@ -79,8 +80,8 @@ const stopCaptureLoop = () => {
 };
 
 const socket = io(serverUrl, {
-  transports: ["polling"],
-  upgrade: false,
+  auth: remoteControlToken ? { token: remoteControlToken } : undefined,
+  transports: ["websocket", "polling"],
 });
 
 const sendFrame = async () => {
