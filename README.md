@@ -38,6 +38,7 @@ It contains:
 ## .env Keys
 
 - `REMOTE_SERVER_URL` backend URL
+- `REMOTE_USE_LOCALHOST` set to `1` to force `http://localhost:5000` when `REMOTE_SERVER_URL` is not set
 - `REMOTE_HOST_ID` unique host id
 - `REMOTE_FPS` frame rate (default 6)
 - `REMOTE_PERF_MODE` `auto` (default) or `off`

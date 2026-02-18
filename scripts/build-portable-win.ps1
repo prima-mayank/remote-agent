@@ -33,7 +33,7 @@ if (Test-Path $sourceEnvPath) {
   Copy-Item -Path $sourceEnvPath -Destination (Join-Path $appDir ".env") -Force
 } else {
 @"
-REMOTE_SERVER_URL=https://calling-app-backend.onrender.com
+REMOTE_SERVER_URL=https://calling-app-backend-1.onrender.com
 REMOTE_HOST_ID=host1
 REMOTE_FPS=6
 REMOTE_CONTROL_TOKEN=change-me
@@ -41,7 +41,7 @@ REMOTE_CONTROL_TOKEN=change-me
 }
 
 @"
-REMOTE_SERVER_URL=https://calling-app-backend.onrender.com
+REMOTE_SERVER_URL=https://calling-app-backend-1.onrender.com
 REMOTE_HOST_ID=host1
 REMOTE_FPS=6
 REMOTE_CONTROL_TOKEN=change-me

@@ -29,7 +29,11 @@ if (envPath) {
   dotenv.config({ path: envPath, quiet: true });
 }
 
-const serverUrl = process.env.REMOTE_SERVER_URL || "http://localhost:5000";
+const serverUrl =
+  process.env.REMOTE_SERVER_URL ||
+  (String(process.env.REMOTE_USE_LOCALHOST || "").trim() === "1" &&
+    "http://localhost:5000") ||
+  "https://calling-app-backend-1.onrender.com";
 const remoteControlToken = String(process.env.REMOTE_CONTROL_TOKEN || "").trim();
 const hostId = String(process.env.REMOTE_HOST_ID || os.hostname()).trim();
 const configuredDisplayId = String(process.env.REMOTE_DISPLAY_ID || "").trim();
