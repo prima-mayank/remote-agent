@@ -35,6 +35,9 @@ It contains:
 - `.env.template`
 - `scripts/windowsInputBridge.ps1`
 
+Note: by default the build generates `.env` from the template values (safe for distribution).
+If you intentionally want to embed your local `remote-agent/.env` into the bundle, run the build with `REMOTE_AGENT_COPY_ENV=1`.
+
 ## .env Keys
 
 - `REMOTE_SERVER_URL` backend URL

@@ -2,7 +2,6 @@
   "name": "remote-desktop-agent",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
   "bin": "launcher.cjs",
   "scripts": {
     "start": "node index.js",

@@ -1,14 +1,10 @@
-import os from "os";
-import path from "path";
-import fs from "fs";
-import { spawn } from "child_process";
-import { fileURLToPath } from "url";
-import dotenv from "dotenv";
-import screenshot from "screenshot-desktop";
-import { io } from "socket.io-client";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const os = require("os");
+const path = require("path");
+const fs = require("fs");
+const { spawn } = require("child_process");
+const dotenv = require("dotenv");
+const screenshot = require("screenshot-desktop");
+const { io } = require("socket.io-client");
 
 const resolveEnvPath = () => {
   const candidates = [
@@ -37,7 +33,9 @@ const serverUrl =
 const remoteControlToken = String(process.env.REMOTE_CONTROL_TOKEN || "").trim();
 const hostId = String(process.env.REMOTE_HOST_ID || os.hostname()).trim();
 const configuredDisplayId = String(process.env.REMOTE_DISPLAY_ID || "").trim();
-const performanceMode = String(process.env.REMOTE_PERF_MODE || "auto").trim().toLowerCase();
+const performanceMode = String(process.env.REMOTE_PERF_MODE || "auto")
+  .trim()
+  .toLowerCase();
 const baseFps = Number.isFinite(Number(process.env.REMOTE_FPS))
   ? Number(process.env.REMOTE_FPS)
   : 6;
@@ -162,13 +160,9 @@ const resolveDisplayId = async () => {
         const left = Number(selectedDisplay.left);
         const top = Number(selectedDisplay.top);
         const sizeLabel =
-          Number.isFinite(width) && Number.isFinite(height)
-            ? ` ${width}x${height}`
-            : "";
+          Number.isFinite(width) && Number.isFinite(height) ? ` ${width}x${height}` : "";
         const originLabel =
-          Number.isFinite(left) && Number.isFinite(top)
-            ? ` @(${left},${top})`
-            : "";
+          Number.isFinite(left) && Number.isFinite(top) ? ` @(${left},${top})` : "";
 
         console.log(
           `[agent] display (${configuredDisplayId ? "resolved" : "auto"}): ${selectedDisplay.id}${sizeLabel}${originLabel}`
@@ -197,10 +191,7 @@ const getEffectiveCaptureFps = () => {
     normalizedMinFps,
     Math.min(inputFps, normalizedBaseFps)
   );
-  const normalizedTypingFps = Math.max(
-    1,
-    Math.min(typingFps, normalizedInputFps)
-  );
+  const normalizedTypingFps = Math.max(1, Math.min(typingFps, normalizedInputFps));
 
   if (now - lastTypingAt <= typingWindowMs) {
     return normalizedTypingFps;
@@ -293,12 +284,7 @@ const stopInputBridge = () => {
 const sendToInputBridge = (event) => {
   if (!inputBridge || inputBridge.killed) return;
   try {
-    const payload = resolvedDisplayBounds
-      ? {
-          ...event,
-          __display: resolvedDisplayBounds,
-        }
-      : event;
+    const payload = resolvedDisplayBounds ? { ...event, __display: resolvedDisplayBounds } : event;
     inputBridge.stdin.write(`${JSON.stringify(payload)}\n`);
   } catch (err) {
     console.error("[agent] failed writing to input bridge:", err.message);
@@ -328,9 +314,7 @@ const sendFrame = async () => {
   captureInProgress = true;
   try {
     const displayId = await resolveDisplayId();
-    const captureOptions = displayId
-      ? { format: "jpg", screen: displayId }
-      : { format: "jpg" };
+    const captureOptions = displayId ? { format: "jpg", screen: displayId } : { format: "jpg" };
     const frame = await screenshot(captureOptions);
     const image = frame.toString("base64");
     if (!image || image.length > MAX_FRAME_BASE64_LENGTH) {
@@ -429,3 +413,4 @@ const shutdown = () => {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+

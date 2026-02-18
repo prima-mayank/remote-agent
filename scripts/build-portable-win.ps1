@@ -29,7 +29,10 @@ New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
 Copy-Item -Path (Join-Path $root "scripts\windowsInputBridge.ps1") -Destination $scriptsDir -Force
 
 $sourceEnvPath = Join-Path $root ".env"
-if (Test-Path $sourceEnvPath) {
+# By default, do NOT ship a developer's local `.env` inside the portable bundle.
+# If you intentionally want to embed your local `.env`, set `REMOTE_AGENT_COPY_ENV=1` when running the build.
+$copyLocalEnv = ($env:REMOTE_AGENT_COPY_ENV -eq "1")
+if ($copyLocalEnv -and (Test-Path $sourceEnvPath)) {
   Copy-Item -Path $sourceEnvPath -Destination (Join-Path $appDir ".env") -Force
 } else {
 @"
