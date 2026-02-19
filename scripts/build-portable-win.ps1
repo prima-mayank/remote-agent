@@ -37,17 +37,19 @@ if ($copyLocalEnv -and (Test-Path $sourceEnvPath)) {
 } else {
 @"
 REMOTE_SERVER_URL=https://calling-app-backend-1.onrender.com
-REMOTE_HOST_ID=host1
+REMOTE_HOST_ID=
 REMOTE_FPS=6
 REMOTE_CONTROL_TOKEN=change-me
+# REMOTE_DEBUG=1
 "@ | Set-Content -Path (Join-Path $appDir ".env") -Encoding ASCII
 }
 
 @"
 REMOTE_SERVER_URL=https://calling-app-backend-1.onrender.com
-REMOTE_HOST_ID=host1
+REMOTE_HOST_ID=
 REMOTE_FPS=6
 REMOTE_CONTROL_TOKEN=change-me
+# REMOTE_DEBUG=1
 "@ | Set-Content -Path (Join-Path $appDir ".env.template") -Encoding ASCII
 
 @"

@@ -4,6 +4,8 @@ node_modules/
 .env
 .env.*
 !.env.example
+.host-id
+.calling-app-host-id
 
 # logs
 logs/

@@ -1,6 +1,7 @@
 const os = require("os");
 const path = require("path");
 const fs = require("fs");
+const { randomBytes } = require("crypto");
 const { spawn } = require("child_process");
 const dotenv = require("dotenv");
 const screenshot = require("screenshot-desktop");
@@ -25,13 +26,144 @@ if (envPath) {
   dotenv.config({ path: envPath, quiet: true });
 }
 
+const sanitizeHostId = (value, maxLength = 64) =>
+  String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, maxLength);
+
+const buildGeneratedHostId = () => {
+  const hostPart = sanitizeHostId(os.hostname(), 20) || "device";
+  const randomPart = randomBytes(3).toString("hex");
+  return sanitizeHostId(`host-${hostPart}-${randomPart}`, 64);
+};
+
+const getUserHostIdStoragePath = () => {
+  const appDataPath = String(process.env.APPDATA || "").trim();
+  if (appDataPath) {
+    return path.join(appDataPath, "calling-app-host-agent", ".host-id");
+  }
+
+  const homePath = String(os.homedir() || "").trim();
+  if (homePath) {
+    return path.join(homePath, ".calling-app-host-id");
+  }
+
+  return "";
+};
+
+const getHostIdStoragePathCandidates = () => {
+  const envDerivedHostIdPath = envPath
+    ? path.join(path.dirname(envPath), ".host-id")
+    : "";
+  const candidates = [
+    path.join(process.cwd(), ".host-id"),
+    envDerivedHostIdPath,
+    path.join(path.dirname(process.execPath), ".host-id"),
+  ];
+  const userHostIdPath = getUserHostIdStoragePath();
+  if (userHostIdPath) {
+    candidates.push(userHostIdPath);
+  }
+
+  const normalizedCandidates = candidates
+    .map((candidate) => String(candidate || "").trim())
+    .filter((candidate) => !!candidate)
+    .map((candidate) => path.resolve(candidate));
+
+  return [...new Set(normalizedCandidates)];
+};
+
+const readPersistedHostId = () => {
+  for (const hostIdPath of getHostIdStoragePathCandidates()) {
+    try {
+      if (!fs.existsSync(hostIdPath)) continue;
+      const persistedHostId = sanitizeHostId(fs.readFileSync(hostIdPath, "utf8"), 64);
+      if (persistedHostId) {
+        return { hostId: persistedHostId, path: hostIdPath };
+      }
+    } catch {
+      // noop
+    }
+  }
+  return null;
+};
+
+const persistHostId = (hostId) => {
+  for (const hostIdPath of getHostIdStoragePathCandidates()) {
+    try {
+      const hostIdDirPath = path.dirname(hostIdPath);
+      if (!fs.existsSync(hostIdDirPath)) {
+        fs.mkdirSync(hostIdDirPath, { recursive: true });
+      }
+      fs.writeFileSync(hostIdPath, `${hostId}\n`, "utf8");
+      return hostIdPath;
+    } catch {
+      // try next path
+    }
+  }
+  return "";
+};
+
+const resolveHostId = () => {
+  const rawHostId = String(process.env.REMOTE_HOST_ID || "").trim();
+  const normalizedHostId = sanitizeHostId(rawHostId, 64);
+  const placeholderIds = new Set(["host1", "host-local-main", "host-local-peer", "host"]);
+  const shouldAutoGenerate =
+    !normalizedHostId || placeholderIds.has(normalizedHostId.toLowerCase());
+
+  if (!shouldAutoGenerate) {
+    if (rawHostId !== normalizedHostId) {
+      console.log(
+        `[agent] REMOTE_HOST_ID '${rawHostId}' normalized to '${normalizedHostId}'.`
+      );
+    }
+    return normalizedHostId;
+  }
+
+  if (rawHostId && !normalizedHostId) {
+    console.warn(
+      `[agent] REMOTE_HOST_ID '${rawHostId}' became empty after sanitization. Generating host id.`
+    );
+  }
+
+  const persisted = readPersistedHostId();
+  if (persisted?.hostId) {
+    if (rawHostId) {
+      console.log(
+        `[agent] REMOTE_HOST_ID '${rawHostId}' is a default placeholder. Using saved host id '${persisted.hostId}'.`
+      );
+    }
+    return persisted.hostId;
+  }
+
+  const generatedHostId = buildGeneratedHostId();
+  const persistedPath = persistHostId(generatedHostId);
+  if (rawHostId) {
+    console.log(
+      `[agent] REMOTE_HOST_ID '${rawHostId}' is a default placeholder. Generated host id '${generatedHostId}'.`
+    );
+  } else {
+    console.log(`[agent] REMOTE_HOST_ID not set. Generated host id '${generatedHostId}'.`);
+  }
+  if (persistedPath) {
+    console.log(`[agent] persisted host id at ${persistedPath}`);
+  } else {
+    console.warn(
+      "[agent] failed to persist generated host id. Host id may change after restart."
+    );
+  }
+  return generatedHostId;
+};
+
 const serverUrl =
   process.env.REMOTE_SERVER_URL ||
   (String(process.env.REMOTE_USE_LOCALHOST || "").trim() === "1" &&
     "http://localhost:5000") ||
   "https://calling-app-backend-1.onrender.com";
 const remoteControlToken = String(process.env.REMOTE_CONTROL_TOKEN || "").trim();
-const hostId = String(process.env.REMOTE_HOST_ID || os.hostname()).trim();
+const hostId = resolveHostId();
+const remoteDebugEnabled = String(process.env.REMOTE_DEBUG || "").trim() === "1";
 const configuredDisplayId = String(process.env.REMOTE_DISPLAY_ID || "").trim();
 const performanceMode = String(process.env.REMOTE_PERF_MODE || "auto")
   .trim()
@@ -79,12 +211,22 @@ if (performanceMode === "auto") {
 if (configuredDisplayId) {
   console.log(`[agent] display (configured): ${configuredDisplayId}`);
 }
+if (remoteDebugEnabled) {
+  console.log("[agent] debug logging enabled.");
+}
+
+const logAgentDebug = (eventName, payload = {}) => {
+  if (!remoteDebugEnabled) return;
+  const normalizedEventName = String(eventName || "").trim() || "event";
+  console.log(`[agent][debug] ${normalizedEventName}`, payload);
+};
 
 let activeSessionId = "";
 let captureTimer = null;
 let captureLoopRunning = false;
 let captureInProgress = false;
 let inputBridge = null;
+let inputBridgeStopping = false;
 let resolvedDisplayId = configuredDisplayId;
 let resolvedDisplayBounds = null;
 let displayResolved = false;
@@ -266,13 +408,30 @@ const startInputBridge = async () => {
     }
   );
 
-  inputBridge.on("exit", (code) => {
-    console.error(`[agent] input bridge exited with code ${code}`);
+  inputBridge.on("error", (err) => {
+    console.error(`[agent] input bridge failed: ${err?.message || err}`);
+  });
+
+  inputBridge.on("exit", (code, signal) => {
+    const expectedStop = inputBridgeStopping;
+    inputBridge = null;
+    inputBridgeStopping = false;
+
+    if (expectedStop) {
+      return;
+    }
+
+    const formattedCode = Number.isInteger(code) ? String(code) : "unknown";
+    const formattedSignal = signal || "none";
+    console.error(
+      `[agent] input bridge exited unexpectedly (code=${formattedCode}, signal=${formattedSignal}).`
+    );
   });
 };
 
 const stopInputBridge = () => {
   if (!inputBridge) return;
+  inputBridgeStopping = true;
   try {
     inputBridge.kill();
   } catch (e) {
@@ -282,7 +441,15 @@ const stopInputBridge = () => {
 };
 
 const sendToInputBridge = (event) => {
-  if (!inputBridge || inputBridge.killed) return;
+  if (!inputBridge || inputBridge.killed || inputBridge.exitCode !== null) return;
+  if (
+    !inputBridge.stdin ||
+    inputBridge.stdin.destroyed ||
+    inputBridge.stdin.writableEnded ||
+    !inputBridge.stdin.writable
+  ) {
+    return;
+  }
   try {
     const payload = resolvedDisplayBounds ? { ...event, __display: resolvedDisplayBounds } : event;
     inputBridge.stdin.write(`${JSON.stringify(payload)}\n`);
@@ -352,28 +519,43 @@ socket.on("connect_error", (error) => {
   console.error(`[agent] connect error: ${error.message}`);
 });
 
-socket.on("remote-host-registered", ({ hostId: registeredHostId }) => {
+socket.on("remote-host-registered", ({ hostId: registeredHostId } = {}) => {
+  const normalizedRegisteredHostId = String(registeredHostId || "").trim();
   console.log("[agent] host registered.");
-  console.log(`[agent] Host ID: ${registeredHostId}`);
+  if (normalizedRegisteredHostId) {
+    console.log(`[agent] Host ID: ${normalizedRegisteredHostId}`);
+  }
 });
 
-socket.on("remote-session-started", ({ sessionId, hostId: sessionHostId }) => {
-  if (!sessionId || sessionHostId !== hostId) return;
-  activeSessionId = sessionId;
-  console.log(`[agent] remote session started: ${sessionId}`);
+socket.on("remote-session-started", ({ sessionId, hostId: sessionHostId } = {}) => {
+  const normalizedSessionId = String(sessionId || "").trim();
+  const normalizedSessionHostId = String(sessionHostId || "").trim();
+  if (!normalizedSessionId || normalizedSessionHostId !== hostId) return;
+  activeSessionId = normalizedSessionId;
+  console.log(`[agent] remote session started: ${normalizedSessionId}`);
   startCaptureLoop();
 });
 
-socket.on("remote-session-ended", ({ sessionId }) => {
-  if (!sessionId || sessionId !== activeSessionId) return;
-  console.log(`[agent] remote session ended: ${sessionId}`);
+socket.on("remote-session-ended", ({ sessionId } = {}) => {
+  const normalizedSessionId = String(sessionId || "").trim();
+  if (!normalizedSessionId || normalizedSessionId !== activeSessionId) return;
+  console.log(`[agent] remote session ended: ${normalizedSessionId}`);
   activeSessionId = "";
   stopCaptureLoop();
 });
 
-socket.on("remote-input", ({ sessionId, event }) => {
-  if (!sessionId || !event) return;
-  if (sessionId !== activeSessionId) return;
+socket.on("remote-input", ({ sessionId, event } = {}) => {
+  const normalizedSessionId = String(sessionId || "").trim();
+  if (!normalizedSessionId || !event) return;
+  if (normalizedSessionId !== activeSessionId) return;
+  logAgentDebug("remote-input", {
+    sessionId: normalizedSessionId,
+    type: String(event?.type || ""),
+    x: toFiniteNumber(event?.x),
+    y: toFiniteNumber(event?.y),
+    key: String(event?.key || ""),
+    button: String(event?.button || ""),
+  });
 
   const now = Date.now();
   lastInputAt = now;
@@ -384,7 +566,7 @@ socket.on("remote-input", ({ sessionId, event }) => {
   sendToInputBridge(event);
 });
 
-socket.on("remote-session-error", ({ message, code }) => {
+socket.on("remote-session-error", ({ message, code } = {}) => {
   const errorMessage =
     typeof message === "string" && message.trim() ? message.trim() : "Unknown error";
   console.error(`[agent] session error (${code || "unknown"}): ${errorMessage}`);
@@ -413,4 +595,3 @@ const shutdown = () => {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
-
