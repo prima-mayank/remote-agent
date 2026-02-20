@@ -38,7 +38,8 @@ if ($copyLocalEnv -and (Test-Path $sourceEnvPath)) {
 @"
 REMOTE_SERVER_URL=https://calling-app-backend-1.onrender.com
 REMOTE_HOST_ID=
-REMOTE_FPS=6
+REMOTE_FPS=10
+REMOTE_PERF_MODE=auto
 REMOTE_CONTROL_TOKEN=change-me
 # REMOTE_DEBUG=1
 "@ | Set-Content -Path (Join-Path $appDir ".env") -Encoding ASCII
@@ -47,7 +48,8 @@ REMOTE_CONTROL_TOKEN=change-me
 @"
 REMOTE_SERVER_URL=https://calling-app-backend-1.onrender.com
 REMOTE_HOST_ID=
-REMOTE_FPS=6
+REMOTE_FPS=10
+REMOTE_PERF_MODE=auto
 REMOTE_CONTROL_TOKEN=change-me
 # REMOTE_DEBUG=1
 "@ | Set-Content -Path (Join-Path $appDir ".env.template") -Encoding ASCII
