@@ -325,16 +325,16 @@ const baseFps = Number.isFinite(Number(launchOverrides.fps))
   ? Number(launchOverrides.fps)
   : Number.isFinite(Number(process.env.REMOTE_FPS))
   ? Number(process.env.REMOTE_FPS)
-  : 6;
+  : 10;
 const minFps = Number.isFinite(Number(process.env.REMOTE_MIN_FPS))
   ? Number(process.env.REMOTE_MIN_FPS)
-  : Math.max(1, Math.min(3, baseFps));
+  : Math.max(2, Math.min(baseFps, Math.round(baseFps * 0.6)));
 const inputFps = Number.isFinite(Number(process.env.REMOTE_ACTIVE_INPUT_FPS))
   ? Number(process.env.REMOTE_ACTIVE_INPUT_FPS)
-  : Math.max(minFps, Math.min(3, baseFps));
+  : Math.max(minFps, Math.min(baseFps, Math.round(baseFps)));
 const typingFps = Number.isFinite(Number(process.env.REMOTE_TYPING_FPS))
   ? Number(process.env.REMOTE_TYPING_FPS)
-  : Math.max(1, Math.min(2, inputFps));
+  : Math.max(minFps, Math.min(inputFps, Math.round(baseFps * 0.9)));
 const inputWindowMs = Number.isFinite(Number(process.env.REMOTE_INPUT_WINDOW_MS))
   ? Number(process.env.REMOTE_INPUT_WINDOW_MS)
   : 1200;
@@ -344,7 +344,7 @@ const typingWindowMs = Number.isFinite(Number(process.env.REMOTE_TYPING_WINDOW_M
 const slowCaptureThresholdMs = Number.isFinite(Number(process.env.REMOTE_SLOW_CAPTURE_MS))
   ? Number(process.env.REMOTE_SLOW_CAPTURE_MS)
   : 450;
-const MAX_FRAME_BASE64_LENGTH = 800_000;
+const MAX_FRAME_BASE64_LENGTH = 1_200_000;
 
 if (!hostId) {
   console.error("[agent] REMOTE_HOST_ID cannot be empty.");
@@ -528,7 +528,7 @@ const scheduleNextCapture = (delayMs = null) => {
   }
 
   const effectiveFps = getEffectiveCaptureFps();
-  const computedDelay = Math.max(80, Math.floor(1000 / Math.max(1, effectiveFps)));
+  const computedDelay = Math.max(33, Math.floor(1000 / Math.max(1, effectiveFps)));
   const nextDelay = Number.isFinite(Number(delayMs))
     ? Math.max(0, Math.floor(Number(delayMs)))
     : computedDelay;
@@ -643,7 +643,7 @@ const socket = io(serverUrl, {
 const sendFrame = async () => {
   if (!activeSessionId || !captureLoopRunning) return;
   if (captureInProgress) {
-    scheduleNextCapture(60);
+    scheduleNextCapture(20);
     return;
   }
 
@@ -668,7 +668,7 @@ const sendFrame = async () => {
   } finally {
     const captureDurationMs = Date.now() - captureStartedAt;
     if (performanceMode === "auto" && captureDurationMs >= slowCaptureThresholdMs) {
-      slowCaptureBackoffUntil = Date.now() + 1600;
+      slowCaptureBackoffUntil = Date.now() + 900;
     }
     captureInProgress = false;
     scheduleNextCapture();

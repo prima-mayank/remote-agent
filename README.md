@@ -47,11 +47,11 @@ If you intentionally want to embed your local `remote-agent/.env` into the bundl
 - `REMOTE_SERVER_URL` backend URL
 - `REMOTE_USE_LOCALHOST` set to `1` to force `http://localhost:5000` when `REMOTE_SERVER_URL` is not set
 - `REMOTE_HOST_ID` optional. Leave empty to auto-generate a stable host id for this host machine
-- `REMOTE_FPS` frame rate (default 6)
+- `REMOTE_FPS` frame rate (default 10)
 - `REMOTE_PERF_MODE` `auto` (default) or `off`
-- `REMOTE_MIN_FPS` minimum FPS in auto mode (default up to 3)
-- `REMOTE_ACTIVE_INPUT_FPS` FPS while controller is actively sending input (default up to 3)
-- `REMOTE_TYPING_FPS` FPS while keyboard input is active (default up to 2)
+- `REMOTE_MIN_FPS` minimum FPS in auto mode (default ~60% of `REMOTE_FPS`, about 6 at 10 FPS)
+- `REMOTE_ACTIVE_INPUT_FPS` FPS while controller is actively sending input (default matches `REMOTE_FPS`)
+- `REMOTE_TYPING_FPS` FPS while keyboard input is active (default ~90% of `REMOTE_FPS`)
 - `REMOTE_INPUT_WINDOW_MS` active-input window for adaptive mode (default 1200)
 - `REMOTE_TYPING_WINDOW_MS` typing-priority window for adaptive mode (default 2200)
 - `REMOTE_SLOW_CAPTURE_MS` capture-duration threshold for temporary backoff (default 450)
