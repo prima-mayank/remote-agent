@@ -66,7 +66,16 @@ if not exist ".env" (
     exit /b 1
   )
 )
-remote-agent.exe
+set "HOSTAPP_COMMAND=\"%~f0\" \"%%1\""
+reg add "HKCU\Software\Classes\hostapp" /ve /d "URL:Calling App Host Launcher" /f >nul 2>&1
+reg add "HKCU\Software\Classes\hostapp" /v "URL Protocol" /d "" /f >nul 2>&1
+reg add "HKCU\Software\Classes\hostapp\DefaultIcon" /ve /d "\"%~dp0remote-agent.exe\",0" /f >nul 2>&1
+reg add "HKCU\Software\Classes\hostapp\shell\open\command" /ve /d "%HOSTAPP_COMMAND%" /f >nul 2>&1
+if "%~1"=="" (
+  remote-agent.exe
+) else (
+  remote-agent.exe %*
+)
 "@ | Set-Content -Path (Join-Path $appDir "start-agent.bat") -Encoding ASCII
 
 Move-Item -Path (Join-Path $distDir "remote-agent.exe") -Destination (Join-Path $appDir "remote-agent.exe") -Force

@@ -32,6 +32,135 @@ const sanitizeHostId = (value, maxLength = 64) =>
     .replace(/[^a-zA-Z0-9_-]/g, "")
     .slice(0, maxLength);
 
+const sanitizeToken = (value, maxLength = 256) =>
+  String(value || "")
+    .trim()
+    .slice(0, maxLength);
+
+const normalizeServerUrl = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  try {
+    const parsed = new URL(raw);
+    const protocol = String(parsed.protocol || "").toLowerCase();
+    if (protocol !== "http:" && protocol !== "https:") return "";
+    parsed.hash = "";
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+};
+
+const toPositiveNumber = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
+const parseLaunchOverrides = (argv = []) => {
+  const overrides = {
+    serverUrl: "",
+    hostId: "",
+    remoteControlToken: "",
+    displayId: "",
+    fps: null,
+    source: "",
+  };
+
+  const applyProtocolUrl = (candidate) => {
+    const rawCandidate = String(candidate || "").trim();
+    if (!rawCandidate) return false;
+
+    let parsed;
+    try {
+      parsed = new URL(rawCandidate);
+    } catch {
+      return false;
+    }
+
+    if (String(parsed.protocol || "").toLowerCase() !== "hostapp:") {
+      return false;
+    }
+
+    const protocolServerUrl = normalizeServerUrl(
+      parsed.searchParams.get("server") ||
+        parsed.searchParams.get("serverUrl") ||
+        parsed.searchParams.get("url")
+    );
+    const protocolHostId = sanitizeHostId(
+      parsed.searchParams.get("hostId") ||
+        parsed.searchParams.get("hostid") ||
+        parsed.searchParams.get("id"),
+      64
+    );
+    const protocolToken = sanitizeToken(
+      parsed.searchParams.get("token") ||
+        parsed.searchParams.get("authToken") ||
+        parsed.searchParams.get("auth"),
+      256
+    );
+    const protocolDisplayId = String(
+      parsed.searchParams.get("displayId") ||
+        parsed.searchParams.get("display") ||
+        ""
+    ).trim();
+    const protocolFps = toPositiveNumber(parsed.searchParams.get("fps"));
+
+    if (protocolServerUrl) overrides.serverUrl = protocolServerUrl;
+    if (protocolHostId) overrides.hostId = protocolHostId;
+    if (protocolToken) overrides.remoteControlToken = protocolToken;
+    if (protocolDisplayId) overrides.displayId = protocolDisplayId;
+    if (protocolFps) overrides.fps = protocolFps;
+
+    overrides.source = "protocol";
+    return true;
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = String(argv[index] || "").trim();
+    if (!arg) continue;
+
+    if (applyProtocolUrl(arg)) continue;
+
+    if (arg.startsWith("--server=")) {
+      const serverUrl = normalizeServerUrl(arg.slice("--server=".length));
+      if (serverUrl) overrides.serverUrl = serverUrl;
+      if (!overrides.source) overrides.source = "cli";
+      continue;
+    }
+
+    if (arg.startsWith("--host-id=")) {
+      const hostId = sanitizeHostId(arg.slice("--host-id=".length), 64);
+      if (hostId) overrides.hostId = hostId;
+      if (!overrides.source) overrides.source = "cli";
+      continue;
+    }
+
+    if (arg.startsWith("--token=")) {
+      const token = sanitizeToken(arg.slice("--token=".length), 256);
+      if (token) overrides.remoteControlToken = token;
+      if (!overrides.source) overrides.source = "cli";
+      continue;
+    }
+
+    if (arg.startsWith("--display-id=")) {
+      const displayId = String(arg.slice("--display-id=".length) || "").trim();
+      if (displayId) overrides.displayId = displayId;
+      if (!overrides.source) overrides.source = "cli";
+      continue;
+    }
+
+    if (arg.startsWith("--fps=")) {
+      const fps = toPositiveNumber(arg.slice("--fps=".length));
+      if (fps) overrides.fps = fps;
+      if (!overrides.source) overrides.source = "cli";
+    }
+  }
+
+  return overrides;
+};
+
 const buildGeneratedHostId = () => {
   const hostPart = sanitizeHostId(os.hostname(), 20) || "device";
   const randomPart = randomBytes(3).toString("hex");
@@ -105,7 +234,25 @@ const persistHostId = (hostId) => {
   return "";
 };
 
-const resolveHostId = () => {
+const resolveHostId = (overrideHostId = "") => {
+  const normalizedOverrideHostId = sanitizeHostId(overrideHostId, 64);
+  if (normalizedOverrideHostId) {
+    const persistedPath = persistHostId(normalizedOverrideHostId);
+    console.log(
+      `[agent] using launch-provided host id '${normalizedOverrideHostId}'.`
+    );
+    if (persistedPath) {
+      console.log(`[agent] persisted host id at ${persistedPath}`);
+    }
+    return normalizedOverrideHostId;
+  }
+
+  if (String(overrideHostId || "").trim() && !normalizedOverrideHostId) {
+    console.warn(
+      `[agent] launch host id '${overrideHostId}' became empty after sanitization.`
+    );
+  }
+
   const rawHostId = String(process.env.REMOTE_HOST_ID || "").trim();
   const normalizedHostId = sanitizeHostId(rawHostId, 64);
   const placeholderIds = new Set(["host1", "host-local-main", "host-local-peer", "host"]);
@@ -156,19 +303,27 @@ const resolveHostId = () => {
   return generatedHostId;
 };
 
+const launchOverrides = parseLaunchOverrides(process.argv.slice(2));
 const serverUrl =
+  launchOverrides.serverUrl ||
   process.env.REMOTE_SERVER_URL ||
   (String(process.env.REMOTE_USE_LOCALHOST || "").trim() === "1" &&
     "http://localhost:5000") ||
   "https://calling-app-backend-1.onrender.com";
-const remoteControlToken = String(process.env.REMOTE_CONTROL_TOKEN || "").trim();
-const hostId = resolveHostId();
+const remoteControlToken =
+  launchOverrides.remoteControlToken ||
+  sanitizeToken(process.env.REMOTE_CONTROL_TOKEN || "", 256);
+const hostId = resolveHostId(launchOverrides.hostId);
 const remoteDebugEnabled = String(process.env.REMOTE_DEBUG || "").trim() === "1";
-const configuredDisplayId = String(process.env.REMOTE_DISPLAY_ID || "").trim();
+const configuredDisplayId = String(
+  launchOverrides.displayId || process.env.REMOTE_DISPLAY_ID || ""
+).trim();
 const performanceMode = String(process.env.REMOTE_PERF_MODE || "auto")
   .trim()
   .toLowerCase();
-const baseFps = Number.isFinite(Number(process.env.REMOTE_FPS))
+const baseFps = Number.isFinite(Number(launchOverrides.fps))
+  ? Number(launchOverrides.fps)
+  : Number.isFinite(Number(process.env.REMOTE_FPS))
   ? Number(process.env.REMOTE_FPS)
   : 6;
 const minFps = Number.isFinite(Number(process.env.REMOTE_MIN_FPS))
@@ -199,6 +354,21 @@ if (!hostId) {
 console.log(`[agent] booting...`);
 console.log(`[agent] server: ${serverUrl}`);
 console.log(`[agent] host: ${hostId}`);
+if (launchOverrides.source === "protocol") {
+  console.log("[agent] launch source: hostapp protocol.");
+}
+if (launchOverrides.serverUrl) {
+  console.log("[agent] server overridden by launch payload.");
+}
+if (launchOverrides.hostId) {
+  console.log("[agent] host id overridden by launch payload.");
+}
+if (launchOverrides.remoteControlToken) {
+  console.log("[agent] auth token provided by launch payload.");
+}
+if (launchOverrides.displayId) {
+  console.log("[agent] display id overridden by launch payload.");
+}
 console.log(`[agent] fps: ${Math.max(1, baseFps)} (mode=${performanceMode || "auto"})`);
 if (performanceMode === "auto") {
   console.log(

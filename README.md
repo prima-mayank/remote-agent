@@ -8,6 +8,10 @@ This app runs on the Windows machine that will be remotely controlled.
 2. Double-click `start-agent.bat`.
 3. If your publisher included a preconfigured `.env`, no setup is needed.
 
+`start-agent.bat` also registers the `hostapp://` protocol for the current Windows user.
+After the first run, the website can launch the app directly with server/host/token params
+without terminal commands.
+
 ## Build Portable Windows App
 
 Run from this folder:
@@ -56,6 +60,11 @@ If you intentionally want to embed your local `remote-agent/.env` into the bundl
 - `REMOTE_DEBUG` set to `1` for verbose input-event logging
 
 If cursor movement feels offset or too sensitive on multi-monitor hosts, set `REMOTE_DISPLAY_ID` explicitly to the target monitor id.
+
+Protocol launch overrides are supported:
+
+- `hostapp://launch?server=https://your-backend&hostId=host-abc&token=shared-token`
+- Equivalent CLI flags: `--server=... --host-id=... --token=... --display-id=... --fps=...`
 
 When `REMOTE_HOST_ID` is empty (or a placeholder like `host1`), the agent generates one and persists it to `.host-id` near the app (with a user-profile fallback when needed).
 
