@@ -74,7 +74,7 @@ reg add "HKCU\Software\Classes\hostapp\shell\open\command" /ve /d "%HOSTAPP_COMM
 if "%~1"=="" (
   remote-agent.exe
 ) else (
-  remote-agent.exe %*
+  remote-agent.exe "%~1"
 )
 "@ | Set-Content -Path (Join-Path $appDir "start-agent.bat") -Encoding ASCII
 
