@@ -37,6 +37,15 @@ const sanitizeToken = (value, maxLength = 256) =>
     .trim()
     .slice(0, maxLength);
 
+const PLACEHOLDER_TOKENS = new Set(["change-me", "changeme", "your-token", "token"]);
+
+const maskToken = (value) => {
+  const token = sanitizeToken(value, 256);
+  if (!token) return "(empty)";
+  if (token.length <= 4) return `${token[0]}***`;
+  return `${token.slice(0, 2)}***${token.slice(-2)}`;
+};
+
 const normalizeServerUrl = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -366,6 +375,15 @@ if (launchOverrides.hostId) {
 if (launchOverrides.remoteControlToken) {
   console.log("[agent] auth token provided by launch payload.");
 }
+if (!remoteControlToken) {
+  console.warn(
+    "[agent] REMOTE_CONTROL_TOKEN is empty. If backend auth is enabled, set token in .env."
+  );
+} else if (PLACEHOLDER_TOKENS.has(remoteControlToken.toLowerCase())) {
+  console.warn(
+    "[agent] REMOTE_CONTROL_TOKEN appears to be a placeholder. Replace it with your backend token."
+  );
+}
 if (launchOverrides.displayId) {
   console.log("[agent] display id overridden by launch payload.");
 }
@@ -686,7 +704,25 @@ socket.on("connect", () => {
 });
 
 socket.on("connect_error", (error) => {
-  console.error(`[agent] connect error: ${error.message}`);
+  const message = String(error?.message || "unknown").trim() || "unknown";
+  console.error(`[agent] connect error: ${message}`);
+
+  if (message.toLowerCase() !== "unauthorized") {
+    return;
+  }
+
+  const tokenState = !remoteControlToken
+    ? "missing"
+    : PLACEHOLDER_TOKENS.has(remoteControlToken.toLowerCase())
+    ? "placeholder"
+    : "provided";
+  const envLocation = envPath || "(no .env found near app/exe)";
+  const tokenPreview = maskToken(remoteControlToken);
+
+  console.error(
+    `[agent] auth rejected by server. Check REMOTE_CONTROL_TOKEN in ${envLocation}.`
+  );
+  console.error(`[agent] token state: ${tokenState}, token preview: ${tokenPreview}`);
 });
 
 socket.on("remote-host-registered", ({ hostId: registeredHostId } = {}) => {

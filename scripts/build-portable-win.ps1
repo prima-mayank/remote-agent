@@ -29,30 +29,105 @@ New-Item -ItemType Directory -Force -Path $scriptsDir | Out-Null
 Copy-Item -Path (Join-Path $root "scripts\windowsInputBridge.ps1") -Destination $scriptsDir -Force
 
 $sourceEnvPath = Join-Path $root ".env"
+
+function Get-EnvValue {
+  param(
+    [string]$FilePath,
+    [string]$Key
+  )
+
+  if (-not (Test-Path $FilePath)) {
+    return ""
+  }
+
+  $escapedKey = [regex]::Escape($Key)
+  $line = Get-Content $FilePath |
+    Where-Object { $_ -match "^\s*$escapedKey\s*=" } |
+    Select-Object -First 1
+
+  if (-not $line) {
+    return ""
+  }
+
+  return ($line -replace "^\s*$escapedKey\s*=\s*", "").Trim()
+}
+
+$resolvedServerUrl = "https://calling-app-backend-1.onrender.com"
+$envServerUrl = ""
+if (Test-Path $sourceEnvPath) {
+  $envServerUrl = Get-EnvValue -FilePath $sourceEnvPath -Key "REMOTE_SERVER_URL"
+}
+if (-not [string]::IsNullOrWhiteSpace($env:REMOTE_AGENT_BUILD_SERVER_URL)) {
+  $resolvedServerUrl = $env:REMOTE_AGENT_BUILD_SERVER_URL.Trim()
+} elseif (-not [string]::IsNullOrWhiteSpace($envServerUrl)) {
+  $resolvedServerUrl = $envServerUrl
+} elseif (-not [string]::IsNullOrWhiteSpace($env:REMOTE_SERVER_URL)) {
+  $resolvedServerUrl = $env:REMOTE_SERVER_URL.Trim()
+}
+
+$resolvedFps = "10"
+$envFps = ""
+if (Test-Path $sourceEnvPath) {
+  $envFps = Get-EnvValue -FilePath $sourceEnvPath -Key "REMOTE_FPS"
+}
+if (-not [string]::IsNullOrWhiteSpace($env:REMOTE_AGENT_BUILD_FPS)) {
+  $resolvedFps = $env:REMOTE_AGENT_BUILD_FPS.Trim()
+} elseif (-not [string]::IsNullOrWhiteSpace($envFps)) {
+  $resolvedFps = $envFps
+} elseif (-not [string]::IsNullOrWhiteSpace($env:REMOTE_FPS)) {
+  $resolvedFps = $env:REMOTE_FPS.Trim()
+}
+
+$resolvedPerfMode = "auto"
+$envPerfMode = ""
+if (Test-Path $sourceEnvPath) {
+  $envPerfMode = Get-EnvValue -FilePath $sourceEnvPath -Key "REMOTE_PERF_MODE"
+}
+if (-not [string]::IsNullOrWhiteSpace($env:REMOTE_AGENT_BUILD_PERF_MODE)) {
+  $resolvedPerfMode = $env:REMOTE_AGENT_BUILD_PERF_MODE.Trim()
+} elseif (-not [string]::IsNullOrWhiteSpace($envPerfMode)) {
+  $resolvedPerfMode = $envPerfMode
+} elseif (-not [string]::IsNullOrWhiteSpace($env:REMOTE_PERF_MODE)) {
+  $resolvedPerfMode = $env:REMOTE_PERF_MODE.Trim()
+}
+
+$resolvedRemoteControlToken = ""
+$envToken = ""
+if (Test-Path $sourceEnvPath) {
+  $envToken = Get-EnvValue -FilePath $sourceEnvPath -Key "REMOTE_CONTROL_TOKEN"
+}
+if (-not [string]::IsNullOrWhiteSpace($env:REMOTE_AGENT_BUILD_REMOTE_CONTROL_TOKEN)) {
+  $resolvedRemoteControlToken = $env:REMOTE_AGENT_BUILD_REMOTE_CONTROL_TOKEN.Trim()
+} elseif (-not [string]::IsNullOrWhiteSpace($envToken)) {
+  $resolvedRemoteControlToken = $envToken
+} elseif (-not [string]::IsNullOrWhiteSpace($env:REMOTE_CONTROL_TOKEN)) {
+  $resolvedRemoteControlToken = $env:REMOTE_CONTROL_TOKEN.Trim()
+}
+
+if ([string]::IsNullOrWhiteSpace($resolvedRemoteControlToken)) {
+  $resolvedRemoteControlToken = "change-me"
+  Write-Warning "[build] REMOTE_CONTROL_TOKEN not found in env vars or remote-agent/.env. Using placeholder 'change-me'."
+}
+
+$generatedEnvBody = @"
+REMOTE_SERVER_URL=$resolvedServerUrl
+REMOTE_HOST_ID=
+REMOTE_FPS=$resolvedFps
+REMOTE_PERF_MODE=$resolvedPerfMode
+REMOTE_CONTROL_TOKEN=$resolvedRemoteControlToken
+# REMOTE_DEBUG=1
+"@
+
 # By default, do NOT ship a developer's local `.env` inside the portable bundle.
 # If you intentionally want to embed your local `.env`, set `REMOTE_AGENT_COPY_ENV=1` when running the build.
 $copyLocalEnv = ($env:REMOTE_AGENT_COPY_ENV -eq "1")
 if ($copyLocalEnv -and (Test-Path $sourceEnvPath)) {
   Copy-Item -Path $sourceEnvPath -Destination (Join-Path $appDir ".env") -Force
 } else {
-@"
-REMOTE_SERVER_URL=https://calling-app-backend-1.onrender.com
-REMOTE_HOST_ID=
-REMOTE_FPS=10
-REMOTE_PERF_MODE=auto
-REMOTE_CONTROL_TOKEN=change-me
-# REMOTE_DEBUG=1
-"@ | Set-Content -Path (Join-Path $appDir ".env") -Encoding ASCII
+  $generatedEnvBody | Set-Content -Path (Join-Path $appDir ".env") -Encoding ASCII
 }
 
-@"
-REMOTE_SERVER_URL=https://calling-app-backend-1.onrender.com
-REMOTE_HOST_ID=
-REMOTE_FPS=10
-REMOTE_PERF_MODE=auto
-REMOTE_CONTROL_TOKEN=change-me
-# REMOTE_DEBUG=1
-"@ | Set-Content -Path (Join-Path $appDir ".env.template") -Encoding ASCII
+$generatedEnvBody | Set-Content -Path (Join-Path $appDir ".env.template") -Encoding ASCII
 
 @"
 @echo off

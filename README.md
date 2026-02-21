@@ -41,6 +41,8 @@ It contains:
 
 Note: by default the build generates `.env` from the template values (safe for distribution).
 If you intentionally want to embed your local `remote-agent/.env` into the bundle, run the build with `REMOTE_AGENT_COPY_ENV=1`.
+`build:win` now auto-fills `REMOTE_CONTROL_TOKEN` (and server/fps fields) from `remote-agent/.env` or process env vars when available.
+To force specific build-time values, set: `REMOTE_AGENT_BUILD_SERVER_URL`, `REMOTE_AGENT_BUILD_FPS`, `REMOTE_AGENT_BUILD_PERF_MODE`, `REMOTE_AGENT_BUILD_REMOTE_CONTROL_TOKEN`.
 
 ## .env Keys
 
