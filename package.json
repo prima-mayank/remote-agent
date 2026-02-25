@@ -9,6 +9,7 @@
     "build:win:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-release-win.ps1"
   },
   "dependencies": {
+    "calling-app-workspace": "file:..",
     "dotenv": "^17.2.3",
     "screenshot-desktop": "^1.15.1",
     "socket.io-client": "^4.8.3"
